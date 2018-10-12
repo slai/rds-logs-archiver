@@ -1,0 +1,247 @@
+{
+    "Parameters": {
+        "BucketName": {
+            "Default": "my-rds-logs",
+            "Description": "Name of the bucket to archive the RDS logs to",
+            "Type": "String"
+        },
+        "BucketPrefix": {
+            "Default": "SOME_DATABASE",
+            "Description": "Prefix to use when building keys to archive the RDS logs to",
+            "Type": "String"
+        },
+        "CodeBucketKey": {
+            "Default": "RDSLogsArchiver.zip",
+            "Description": "Key in CodeBucketName that contains the Lambda function code",
+            "Type": "String"
+        },
+        "CodeBucketName": {
+            "Default": "my-packages",
+            "Description": "Name of the bucket that contains the Lambda function code",
+            "Type": "String"
+        },
+        "DbIdentifier": {
+            "Default": "SOME_DATABASE",
+            "Description": "Identifier of the RDS database",
+            "Type": "String"
+        },
+        "AlarmEmailAddress": {
+            "Default": "sam@example.com",
+            "Description": "Email address to send alerts to when monitoring fails",
+            "Type": "String"
+        }
+    },
+    "Resources": {
+        "Lambda": {
+            "Properties": {
+                "Code": {
+                    "S3Bucket": {
+                        "Ref": "CodeBucketName"
+                    },
+                    "S3Key": {
+                        "Ref": "CodeBucketKey"
+                    }
+                },
+                "Environment": {
+                    "Variables": {
+                        "bucket_name": {
+                            "Ref": "BucketName"
+                        },
+                        "bucket_prefix": {
+                            "Ref": "BucketPrefix"
+                        },
+                        "db_identifier": {
+                            "Ref": "DbIdentifier"
+                        }
+                    }
+                },
+                "Handler": "rds_logs_archiver.archive_rds_logs_lambda_handler",
+                "MemorySize": 256,
+                "ReservedConcurrentExecutions": 2,
+                "Role": {
+                    "Fn::GetAtt": [
+                        "LambdaRole",
+                        "Arn"
+                    ]
+                },
+                "Runtime": "python2.7",
+                "Timeout": 300
+            },
+            "Type": "AWS::Lambda::Function"
+        },
+        "LambdaErrorAlarm": {
+            "Properties": {
+                "AlarmActions": [
+                    {
+                        "Ref": "LambdaErrorAlarmTopic"
+                    }
+                ],
+                "AlarmDescription": {
+                    "Fn::Sub": "Alarm if RDS Logs Archiver (${DbIdentifier}) lambda errors occur"
+                },
+                "ComparisonOperator": "GreaterThanThreshold",
+                "Dimensions": [
+                    {
+                        "Name": "FunctionName",
+                        "Value": {
+                            "Ref": "Lambda"
+                        }
+                    }
+                ],
+                "EvaluationPeriods": "3",
+                "MetricName": "Errors",
+                "Namespace": "AWS/Lambda",
+                "Period": "900",
+                "Statistic": "Maximum",
+                "Threshold": "0",
+                "TreatMissingData": "breaching"
+            },
+            "Type": "AWS::CloudWatch::Alarm"
+        },
+        "LambdaErrorAlarmTopic": {
+            "Properties": {
+                "Subscription": [
+                    {
+                        "Endpoint": {
+                            "Ref": "AlarmEmailAddress"
+                        },
+                        "Protocol": "email"
+                    }
+                ]
+            },
+            "Type": "AWS::SNS::Topic"
+        },
+        "LambdaEventsPermission": {
+            "Properties": {
+                "Action": "lambda:InvokeFunction",
+                "FunctionName": {
+                    "Ref": "Lambda"
+                },
+                "Principal": "events.amazonaws.com",
+                "SourceArn": {
+                    "Fn::GetAtt": [
+                        "LambdaScheduledRule",
+                        "Arn"
+                    ]
+                }
+            },
+            "Type": "AWS::Lambda::Permission"
+        },
+        "LambdaLogGroup": {
+            "Properties": {
+                "LogGroupName": {
+                    "Fn::Join": [
+                        "",
+                        [
+                            "/aws/lambda/",
+                            {
+                                "Ref": "Lambda"
+                            }
+                        ]
+                    ]
+                },
+                "RetentionInDays": 14
+            },
+            "Type": "AWS::Logs::LogGroup"
+        },
+        "LambdaRole": {
+            "Properties": {
+                "AssumeRolePolicyDocument": {
+                    "Statement": [
+                        {
+                            "Action": [
+                                "sts:AssumeRole"
+                            ],
+                            "Effect": "Allow",
+                            "Principal": {
+                                "Service": [
+                                    "lambda.amazonaws.com"
+                                ]
+                            }
+                        }
+                    ],
+                    "Version": "2012-10-17"
+                },
+                "Path": "/",
+                "Policies": [
+                    {
+                        "PolicyDocument": {
+                            "Statement": [
+                                {
+                                    "Action": [
+                                        "logs:CreateLogGroup",
+                                        "logs:CreateLogStream",
+                                        "logs:PutLogEvents"
+                                    ],
+                                    "Effect": "Allow",
+                                    "Resource": [
+                                        "*"
+                                    ]
+                                },
+                                {
+                                    "Action": [
+                                        "s3:GetObject",
+                                        "s3:ListBucket",
+                                        "s3:PutObject",
+                                        "s3:AbortMultipartUpload",
+                                        "s3:ListBucketMultipartUploads",
+                                        "s3:ListMultipartUploadParts"
+                                    ],
+                                    "Effect": "Allow",
+                                    "Resource": [
+                                        {
+                                            "Fn::Sub": "arn:aws:s3:::${BucketName}"
+                                        },
+                                        {
+                                            "Fn::Sub": "arn:aws:s3:::${BucketName}/*"
+                                        }
+                                    ]
+                                },
+                                {
+                                    "Action": [
+                                        "rds:DescribeDBLogFiles",
+                                        "rds:DownloadCompleteDBLogFile"
+                                    ],
+                                    "Effect": "Allow",
+                                    "Resource": [
+                                        {
+                                            "Fn::Sub": "arn:aws:rds:*:*:db:${DbIdentifier}"
+                                        }
+                                    ]
+                                },
+                                {
+                                    "Action": [
+                                        "lambda:InvokeFunction"
+                                    ],
+                                    "Effect": "Allow",
+                                    "Resource": "*"
+                                }
+                            ],
+                            "Version": "2012-10-17"
+                        },
+                        "PolicyName": "RDSLogsArchiverLambdaPolicy"
+                    }
+                ]
+            },
+            "Type": "AWS::IAM::Role"
+        },
+        "LambdaScheduledRule": {
+            "Properties": {
+                "ScheduleExpression": "rate(10 minutes)",
+                "State": "ENABLED",
+                "Targets": [
+                    {
+                        "Arn": {
+                            "Fn::GetAtt": [
+                                "Lambda",
+                                "Arn"
+                            ]
+                        },
+                        "Id": "Lambda"
+                    }
+                ]
+            },
+            "Type": "AWS::Events::Rule"
+        }
+    }
+}
