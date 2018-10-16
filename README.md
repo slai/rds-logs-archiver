@@ -32,7 +32,7 @@ If you want to deploy using other mechanisms, e.g. Terraform, it's best to look 
 
 To deploy using the CloudFormation template,
 
-1. Create the S3 bucket to archive the log files to
+1. Create the S3 bucket to archive the log files to. You may want to add a retention policy to purge logs after a period of time.
 
 2. Create a ZIP file with `rds_logs_archiver.py` in it. It must be named `rds_logs_archiver.py` and must live in the root of the ZIP file. If it isn't, Lambda won't be able to find the code and run it.
 
