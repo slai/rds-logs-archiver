@@ -11,10 +11,12 @@ The Lambda function can be executed locally by running it with some command-line
 You will need to have a Python environment with boto3 installed, e.g.
 
 ```sh
-virtualenv env
-. env/bin/activate
+python3 -m venv .venv
+. .venv/bin/activate
 pip install boto3
 ```
+
+(This was last tested with the python3.8 lambda runtime, using `boto3==1.16.31 botocore==1.19.31`. Substitute that in for `boto3` in the `pip` command above to install these specific versions.)
 
 Then you can run the function and see the necessary command-line arguments,
 
@@ -34,7 +36,7 @@ To deploy using the CloudFormation template,
 
 1. Create the S3 bucket to archive the log files to. You may want to add a retention policy to purge logs after a period of time.
 
-2. Create a ZIP file with `rds_logs_archiver.py` in it. It must be named `rds_logs_archiver.py` and must live in the root of the ZIP file. If it isn't, Lambda won't be able to find the code and run it.
+2. Create a ZIP file with `rds_logs_archiver.py` in it. It must be named `rds_logs_archiver.py` and must live in the root of the ZIP file. If it isn't, Lambda won't be able to find the code and run it. `zip lambda_code.zip rds_logs_archiver.py` should do the trick.
 
 3. Upload the ZIP file to an S3 bucket so Lambda can use it. It can be the same as the bucket the log files will be archived to.
 
