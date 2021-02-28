@@ -1,5 +1,3 @@
-from __future__ import print_function, unicode_literals
-
 import argparse
 import logging
 import os
@@ -148,6 +146,15 @@ def parse_log_metadata_dicts_from_response(response_data):
 
 
 def archive_rds_log_file(rds, db_identifier, log_filename, log_size_bytes, s3, bucket_name, bucket_prefix):
+    """
+    Uses RDS API, but it is not implemented in boto3, hence the private boto3 API access
+    https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/USER_LogAccess.html#DownloadCompleteDBLogFile
+
+    NOTE: can use the download_db_log_file_portion API instead, but would need multiple calls as it is
+    a line-based API and only returns 1MB max per call.
+    https://boto3.amazonaws.com/v1/documentation/api/latest/reference/services/rds.html#RDS.Client.download_db_log_file_portion
+    """
+
     path = '/v13/downloadCompleteLogFile/{}/{}'.format(db_identifier, log_filename)
     url = '{}{}'.format(rds.meta.endpoint_url, path)
 
@@ -156,10 +163,11 @@ def archive_rds_log_file(rds, db_identifier, log_filename, log_size_bytes, s3, b
         url=url,
         data=None,
         headers={'User-Agent': rds.meta.config.user_agent},
+        stream_output=True,
     )
     request.context.update({'client_config': rds.meta.config})
     rds.meta.events.emit('request-created.rds', request=request)
-    response = rds._endpoint.http_session.send(request.prepare(), stream=True)
+    response = rds._endpoint.http_session.send(request.prepare())
 
     key = log_filename
     if bucket_prefix is not None:
