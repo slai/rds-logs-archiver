@@ -4,6 +4,12 @@ A simple Lambda function for archiving RDS logs to a S3 bucket.
 
 See the [blog post](https://engineering.citymapper.com/archiving-rds-logs-automatically.html) for more details.
 
+## Read before deploying
+
+Since the release of this Lambda function, AWS RDS has added [native support for shipping some logs to Cloudwatch Logs](https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/USER_LogAccess.Concepts.PostgreSQL.html#USER_LogAccess.PostgreSQL.PublishtoCloudWatchLogs), which you can then [ship to S3](https://docs.aws.amazon.com/AmazonCloudWatch/latest/logs/S3Export.html) too.
+
+This Lambda function is therefore only useful if you're using a database/version that doesn't support log shipping to Cloudwatch, want to ship unsupported logs, or if you want to bypass Cloudwatch for some reason, e.g. cost.
+
 ## Running it locally
 
 The Lambda function can be executed locally by running it with some command-line arguments.
